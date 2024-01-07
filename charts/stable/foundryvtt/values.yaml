@@ -1,0 +1,136 @@
+image:
+  repository: felddy/foundryvtt
+  pullPolicy: IfNotPresent
+  tag: 11.315.0
+
+securityContext:
+  container:
+    readOnlyRootFilesystem: false
+    runAsNonRoot: false
+    runAsUser: 0
+    runAsGroup: 0
+
+foundry:
+  hostname:
+  adminKey:
+  licenseKey:
+  username:
+  password:
+  passwordSalt:
+
+service:
+  main:
+    ports:
+      main:
+        port: 30000
+
+persistence:
+  config:
+    enabled: true
+    mountPath: /data
+    readOnly: false
+    targetSelector:
+      main:
+        main:
+          mountPath: /data
+    size: 64Gi
+    type: pvc
+    volumeSnapshots: [ ]
+
+  awsS3config:
+    enabled: false
+    mountPath: /etc/awsS3config
+    objectName: s3
+    items:
+      - key: aws-credentials.json
+        path: aws-credentials.json
+
+portal:
+  open:
+    enabled: true
+
+workload:
+  main:
+    podSpec:
+      containers:
+        main:
+          probes:
+            liveness:
+              initialDelaySeconds: 600
+              failureThreshold: 40
+              periodSeconds: 25
+              enabled: true
+              type: http
+              path: /
+            readiness:
+              initialDelaySeconds: 30
+              enabled: true
+              type: http
+              path: /
+            startup:
+              enabled: true
+              type: http
+              path: /
+          envFrom:
+            - secretRef:
+                name: main
+
+secret:
+  main:
+    enabled: true
+    data:
+      FOUNDRY_UID: '{{ .Values.securityContext.runAsUser | default 1000 }}'
+      FOUNDRY_GID: '{{ .Values.securityContext.runAsGroup | default 1000 }}'
+      FOUNDRY_HOSTNAME: '{{ .Values.foundry.hostname | default "foundryvtt.local" }}'
+      UV_THREADPOOL_SIZE: "6"
+      CONTAINER_CACHE: /data/container_cache
+      CONTAINER_PATCHES: /data/container_patches
+      CONTAINER_PATCH_URLS:
+      CONTAINER_PRESERVE_CONFIG: /data/container_preserve_config
+      CONTAINER_PRESERVE_OWNER: "true"
+      TIMEZONE: UTC
+      CONTAINER_VERBOSE: "false"
+      FOUNDRY_RELEASE_URL:
+      FOUNDRY_LANGUAGE: en.core
+      FOUNDRY_MINIFY_STATIC_FILES: "true"
+      FOUNDRY_WORLD:
+      FOUNDRY_ADMIN_KEY: '{{ .Values.foundry.adminKey }}'
+      FOUNDRY_USERNAME: '{{ .Values.foundry.username }}'
+      FOUNDRY_PASSWORD: '{{ .Values.foundry.password }}'
+      LICENSE_KEY: '{{ .Values.foundry.licenseKey }}'
+      FOUNDRY_PASSWORD_SALT: '{{ .Values.foundry.passwordSalt }}'
+  s3:
+    enabled: false
+    data:
+      aws-credentials.json: |-
+        {{- if .Values.secret.s3.enabled }}
+        {
+          "accessKeyId": {{ .Values.secret.s3.accessKeyId | quote }},
+          "secretAccessKey": {{ .Values.secret.s3.secretAccessKey | quote }},
+          "region": {{ .Values.secret.s3.region | quote }}
+        }
+        {{- end }}
+
+resources:
+  limits:
+    cpu: 4000m
+    memory: 8Gi
+  requests:
+    cpu: 100m
+    memory: 100Mi
+
+ixChartContext:
+  addNvidiaRuntimeClass: false
+  hasNFSCSI: true
+  hasSMBCSI: true
+  isInstall: true
+  isUpdate: false
+  isUpgrade: false
+  kubernetes_config:
+    cluster_cidr: 172.16.0.0/16
+    cluster_dns_ip: 172.17.0.10
+    service_cidr: 172.17.0.0/16
+  nfsProvisioner: nfs.csi.k8s.io
+  nvidiaRuntimeClassName: nvidia
+  operation: UPDATE
+  smbProvisioner: smb.csi.k8s.io
